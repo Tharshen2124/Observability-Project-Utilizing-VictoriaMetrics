@@ -2,3 +2,4 @@
 *.toml
 .claude
 .claude/*
+graphify-out
