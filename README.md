@@ -49,9 +49,11 @@ The goal is to understand how metrics, logs, and traces flow through a modern ob
 From `compose.yml`:
 
 - **VictoriaMetrics**: `http://localhost:8428`
-- **VictoriaLogs**: `http://localhost:9201`
+- **VictoriaLogs**: `http://localhost:9428`
+- **VictoriaTraces**: `http://localhost:9429`
 - **Grafana**: `http://localhost:3000`
 - **OpenTelemetry Collector (OTLP HTTP)**: `http://localhost:4318`
+- **Cloudflare Tunnel connector** (`cloudflared`): host-networked; carries the `*.tharshen.xyz` hostnames
 
 > Current retention in this setup is `2d` for VictoriaMetrics and VictoriaLogs.
 
@@ -60,7 +62,7 @@ From `compose.yml`:
 - Docker + Docker Compose
 - AWS account with credentials that have permissions to provision S3 and IAM resources
 - Terraform installed (to provision the S3 bucket and IAM resources in `terraform/`)
-- A `.env` file in the project root with your AWS credentials (see Getting Started)
+- A `.env` file in the project root with your AWS credentials and Cloudflare tunnel token (see Getting Started)
 - (Optional) Go installed locally if you want to run a sample app outside containers
 
 ## Getting Started
@@ -78,9 +80,12 @@ From `compose.yml`:
 	```bash
 	AWS_ACCESS_KEY_ID=your_access_key_id
 	AWS_SECRET_ACCESS_KEY=your_secret_access_key
+	TUNNEL_TOKEN=your_cloudflare_tunnel_token
 	```
 
-	> The OTel Collector uses these to authenticate the `awss3` log exporter.
+	> The OTel Collector uses these to authenticate the `awss3` log exporter. The
+	> `TUNNEL_TOKEN` (from the Cloudflare Zero Trust dashboard) lets the
+	> `cloudflared` service run the `homelab` tunnel.
 
 3. Start the stack:
 
@@ -127,6 +132,47 @@ Reset all persisted data (destructive):
 ```bash
 docker compose down -v
 ```
+
+## Recovery
+
+The stack is built to come back on its own after a crash or a host reboot:
+
+- Every service declares `restart: always`, so Docker restarts a container that
+  exits, and brings the project back up when the host (and Docker daemon) restarts.
+- The Cloudflare Tunnel connector (`cloudflared`) is part of this project and
+  pinned to an image version, so `docker compose up -d` also restores public
+  ingress instead of relying on a connector started by hand.
+
+When a hostname served through the tunnel is unavailable, work through this order:
+
+1. Check the connector is running and registered:
+
+	```bash
+	docker compose ps cloudflared
+	docker compose logs --tail=50 cloudflared
+	```
+
+	A healthy connector logs `Registered tunnel connection`.
+
+2. If it is not running, start (or restart) the project:
+
+	```bash
+	docker compose up -d
+	```
+
+3. Confirm the origin services are up:
+
+	```bash
+	docker compose ps
+	docker compose logs --tail=50 api opentelemetry grafana
+	```
+
+4. Only if the connector still shows no active connection, inspect the tunnel in
+   the Cloudflare Zero Trust dashboard (Networks -> Tunnels).
+
+> The connector requires `TUNNEL_TOKEN` in `.env`. If it is missing, `cloudflared`
+> exits immediately and Docker restarts it in a loop; `docker compose logs
+> cloudflared` shows this.
 
 ## Suggested Learning Path
 
