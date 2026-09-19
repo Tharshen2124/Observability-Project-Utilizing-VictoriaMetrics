@@ -8,11 +8,13 @@ import (
 )
 
 // can call from tests with a fresh router.
-func RegisterRoutes(router *mux.Router) {
+func RegisterRoutes(router *mux.Router, apiKey string) {
 	// Apply the logging middleware to every route registered on this router.
 	router.Use(middlewares.Logging)
 
 	api := router.PathPrefix("/api").Subrouter()
+	// Every /api route requires a valid API key.
+	api.Use(middlewares.RequireAPIKey(apiKey))
 
 	api.HandleFunc("/users", handlers.CreateUser).Methods("POST")
 	api.HandleFunc("/users/{id}", handlers.GetUser).Methods("GET")

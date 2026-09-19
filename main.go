@@ -33,6 +33,12 @@ func run() error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	// Refuse to start without an API key: the API is reachable from the
+	// internet through the tunnel and must not serve unauthenticated callers.
+	if cfg.APIKey == "" {
+		return fmt.Errorf("API_KEY must be set so the API can authenticate callers")
+	}
+
 	// Connect to the Postgres database.
 	if err := db.InitDB(cfg.DatabaseURL); err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
@@ -49,7 +55,7 @@ func run() error {
 
 	// Build and configure the router.
 	r := mux.NewRouter()
-	routes.RegisterRoutes(r)
+	routes.RegisterRoutes(r, cfg.APIKey)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

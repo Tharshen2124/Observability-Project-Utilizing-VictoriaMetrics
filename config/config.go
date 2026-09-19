@@ -9,6 +9,7 @@ import (
 type Config struct {
 	Port        string `mapstructure:"PORT"`
 	DatabaseURL string `mapstructure:"DATABASE_URL"`
+	APIKey      string `mapstructure:"API_KEY"`
 }
 
 func LoadConfig() (*Config, error) {
@@ -24,6 +25,10 @@ func LoadConfig() (*Config, error) {
 
 	if err := v.BindEnv("DATABASE_URL"); err != nil {
 		return nil, fmt.Errorf("bind DATABASE_URL: %w", err)
+	}
+
+	if err := v.BindEnv("API_KEY"); err != nil {
+		return nil, fmt.Errorf("bind API_KEY: %w", err)
 	}
 
 	var config Config
