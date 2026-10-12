@@ -24,6 +24,7 @@ services:
     command:
       - -storageDataPath=/vlogs
       - -retentionPeriod=2d
+    restart: always
 
   victoriatraces:
     image: victoriametrics/victoria-traces:latest
@@ -36,6 +37,7 @@ services:
     command:
       - -storageDataPath=/vtraces
       - -retentionPeriod=2d
+    restart: always
 
   grafana:
     image: grafana/grafana
@@ -52,6 +54,7 @@ services:
       - victoriametrics 
       - victorialogs
       - victoriatraces
+    restart: always
 
   opentelemetry:
     image: otel/opentelemetry-collector-contrib
@@ -62,6 +65,7 @@ services:
       - "4318:4318"
     env_file:
       - .env
+    restart: always
     
   api:
     build: .
@@ -71,6 +75,29 @@ services:
       - opentelemetry
     env_file:
       - .env
+    restart: always
+
+  # Cloudflare Tunnel connector for the "homelab" tunnel
+  # (77870e9c-3c57-497c-a206-b9bfaa78080b). It used to run as an ad-hoc process
+  # outside this project, so a host reboot or a crashed connector could not be
+  # recovered with `docker compose up -d`.
+  #
+  # The tunnel ingress is managed in the Cloudflare dashboard and targets the
+  # host's published ports (http://localhost:<port>, ssh://localhost:22), so the
+  # connector uses host networking to reach them. TUNNEL_TOKEN is read from .env.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    restart: always
+    network_mode: host
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - victoriametrics
+      - victorialogs
+      - victoriatraces
+      - grafana
+      - api
 
 volumes:
   vmdata: {}
