@@ -62,13 +62,58 @@ services:
       - "4318:4318"
     env_file:
       - .env
-    
+
+  # Data store for the `api` service. Data is persisted on the `pgdata`
+  # volume; the container is not published to the host, only the compose
+  # network can reach it.
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  # Scheduled logical backup of the `postgres` data onto the `pgbackups`
+  # volume. See scripts/postgres-backup.sh.
+  postgres-backup:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "/usr/local/bin/postgres-backup.sh"]
+    volumes:
+      - ./scripts/postgres-backup.sh:/usr/local/bin/postgres-backup.sh:ro
+      - pgbackups:/backups
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${POSTGRES_DB:-app}
+      PGUSER: ${POSTGRES_USER:-app}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-app}
+      BACKUP_INTERVAL_SECONDS: "86400"
+      BACKUP_RETENTION_DAYS: "7"
+    restart: always
+
   api:
     build: .
     ports:
       - "8000:8000"
     depends_on:
-      - opentelemetry
+      opentelemetry:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      # Defaults to the compose `postgres` service. Set DATABASE_URL in .env
+      # to point at an existing database instead.
+      DATABASE_URL: ${DATABASE_URL:-postgres://app:app@postgres:5432/app?sslmode=disable}
     env_file:
       - .env
 
@@ -77,3 +122,5 @@ volumes:
   vldata: {}
   vtracesdata: {}
   grafana_data: {}
+  pgdata: {}
+  pgbackups: {}
