@@ -60,7 +60,7 @@ From `compose.yml`:
 - Docker + Docker Compose
 - AWS account with credentials that have permissions to provision S3 and IAM resources
 - Terraform installed (to provision the S3 bucket and IAM resources in `terraform/`)
-- A `.env` file in the project root with your AWS credentials (see Getting Started)
+- A `.env` file in the project root with the AWS credentials, the API's `PORT`/`DATABASE_URL`, and an `API_KEY` (see Getting Started)
 - (Optional) Go installed locally if you want to run a sample app outside containers
 
 ## Getting Started
@@ -73,14 +73,17 @@ From `compose.yml`:
 	terraform apply
 	```
 
-2. Create a `.env` file in the project root with your AWS credentials:
+2. Create a `.env` file in the project root:
 
 	```bash
 	AWS_ACCESS_KEY_ID=your_access_key_id
 	AWS_SECRET_ACCESS_KEY=your_secret_access_key
+	PORT=8000
+	DATABASE_URL=<your postgres connection string>
+	API_KEY=<a long random string>
 	```
 
-	> The OTel Collector uses these to authenticate the `awss3` log exporter.
+	> Compose reads this file for variable interpolation and gives each service only the variables it needs: the OTel Collector receives the AWS keys for the `awss3` exporter, and the API receives `PORT`, `DATABASE_URL` and `API_KEY`. Every `/api` route requires an `X-API-Key` request header matching `API_KEY`, and the API refuses to start without it, so the internet-facing API no longer inherits the tunnel token or the S3 archive keys.
 
 3. Start the stack:
 
@@ -156,4 +159,4 @@ docker compose down -v
 
 - This is intentionally a **dummy/non-production** setup.
 - Defaults are kept simple for learning and quick iteration.
-- For production, add auth, TLS, backup strategy, and hardened configs.
+- For production, add TLS, backup strategy, and hardened configs. (The API already requires an `X-API-Key` header; the public hostnames still need an edge identity gate such as Cloudflare Access.)

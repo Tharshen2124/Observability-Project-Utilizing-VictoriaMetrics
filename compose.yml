@@ -1,9 +1,10 @@
 services:
 
-  victoriametrics: 
+  victoriametrics:
     image: victoriametrics/victoria-metrics:latest
     ports:
-      - "8428:8428"
+      # Bound to loopback: reached through the Cloudflare tunnel, not directly.
+      - "127.0.0.1:8428:8428"
     volumes:
       - vmdata:/storage
     command:
@@ -11,12 +12,12 @@ services:
       # Keep metrics for 2 days
       - -retentionPeriod=2d
     restart: always
-  
+
   # lgtm
-  victorialogs: 
+  victorialogs:
     image: victoriametrics/victoria-logs:latest
     ports:
-      - "9428:9428"
+      - "127.0.0.1:9428:9428"
     depends_on:
       - victoriametrics
     volumes:
@@ -28,7 +29,7 @@ services:
   victoriatraces:
     image: victoriametrics/victoria-traces:latest
     ports:
-      - "9429:10428"
+      - "127.0.0.1:9429:10428"
     depends_on:
       - victoriametrics
     volumes:
@@ -40,16 +41,16 @@ services:
   grafana:
     image: grafana/grafana
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
-      # tells grafana where the VI and VM are. 
+      # tells grafana where the VI and VM are.
       - ./config/grafana-datasource.yml:/etc/grafana/provisioning/datasources/datasource.yaml
       - grafana_data:/var/lib/grafana
     environment:
       # allow grafana to query visualise and interact with VictorialMetrics
       - "GF_INSTALL_PLUGINS=victoriametrics-logs-datasource,jaeger"
     depends_on:
-      - victoriametrics 
+      - victoriametrics
       - victorialogs
       - victoriatraces
 
@@ -59,18 +60,25 @@ services:
     volumes:
       - ./config/otel-collector-config.yml:/etc/otel-collector-config.yml
     ports:
-      - "4318:4318"
-    env_file:
-      - .env
-    
+      - "127.0.0.1:4318:4318"
+    # Only the archive credentials this collector needs for the awss3 exporter.
+    # The shared .env is read by Compose for interpolation, not injected wholesale.
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       - opentelemetry
-    env_file:
-      - .env
+    # Only the variables the API itself reads. It must not inherit the tunnel
+    # token or the S3 archive keys from the shared .env.
+    environment:
+      - PORT=${PORT}
+      - DATABASE_URL=${DATABASE_URL}
+      - API_KEY=${API_KEY}
 
 volumes:
   vmdata: {}
