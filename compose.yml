@@ -63,14 +63,14 @@ services:
     env_file:
       - .env
     
-  api:
-    build: .
-    ports:
-      - "8000:8000"
-    depends_on:
-      - opentelemetry
-    env_file:
-      - .env
+  # golang-api:
+  #   build: .
+  #   ports:
+  #     - "8000:8000"
+  #   depends_on:
+  #     - opentelemetry
+  #   env_file:
+  #     - .env
 
 volumes:
   vmdata: {}

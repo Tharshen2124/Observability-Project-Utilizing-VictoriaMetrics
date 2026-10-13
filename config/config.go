@@ -14,9 +14,9 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	v := viper.New()
 	v.SetConfigFile(".env")
-	viper.AutomaticEnv()
+	v.AutomaticEnv()
 
-	_ = viper.ReadInConfig()
+	_ = v.ReadInConfig()
 
 	if err := v.BindEnv("PORT"); err != nil {
 		return nil, fmt.Errorf("bind PORT: %w", err)

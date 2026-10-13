@@ -1,4 +1,5 @@
 # collects telemetry data from one or more sources
+# TODO: how am i receiving telemetry data? (receivers)
 receivers:
   otlp:
     protocols:
@@ -20,10 +21,10 @@ service:
       receivers: [otlp]
       exporters: [otlphttp/victoriatraces]
 
-exporters:
+exporters: # why otlp and otlphttp?
   otlphttp/victoriametrics:
-    compression: gzip
-    encoding: proto
+    compression: gzip # why are we using compression? and what are the options
+    encoding: proto 
     metrics_endpoint: "http://victoriametrics:8428/opentelemetry/v1/metrics"
 
   otlphttp/victoriatraces:
