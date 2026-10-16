@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    name: Validate compose configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # compose.yml declares `env_file: .env` for the api and opentelemetry
+      # services, and .env is gitignored, so provide an empty one here for the
+      # configuration to resolve. `config` only validates, it never starts
+      # containers, so the placeholder values are never used.
+      - name: Provide placeholder .env
+        run: touch .env
+
+      - name: Validate docker compose configuration
+        run: docker compose config --quiet
+
+  go:
+    name: Build and test Go API
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
