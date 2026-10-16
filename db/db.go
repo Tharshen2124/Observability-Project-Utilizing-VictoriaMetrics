@@ -13,6 +13,10 @@ import (
 // ErrNotFound is returned when a requested record does not exist.
 var ErrNotFound = errors.New("not found")
 
+// ErrDuplicateEmail is returned when a user is created with an email that
+// already belongs to another user.
+var ErrDuplicateEmail = errors.New("duplicate email")
+
 // ConflictError is returned when a business rule is violated (e.g. insufficient stock).
 type ConflictError struct {
 	Reason string
@@ -30,9 +34,12 @@ var Store *PostgresStore
 
 // InitDB opens a GORM connection to the Postgres database and stores it in Store.
 func InitDB(dsn string) error {
-	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	gormDB, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
+	}
+	if err := gormDB.AutoMigrate(&models.User{}, &models.Product{}, &models.Order{}, &models.OrderItem{}); err != nil {
+		return fmt.Errorf("migrate schema: %w", err)
 	}
 	Store = &PostgresStore{db: gormDB}
 	fmt.Println("[DB] Connected to postgres")
@@ -42,7 +49,11 @@ func InitDB(dsn string) error {
 // --- User operations ---
 
 func (s *PostgresStore) CreateUser(u models.User) (models.User, error) {
-	return u, s.db.Create(&u).Error
+	err := s.db.Create(&u).Error
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return u, ErrDuplicateEmail
+	}
+	return u, err
 }
 
 func (s *PostgresStore) GetUser(id string) (models.User, error) {
