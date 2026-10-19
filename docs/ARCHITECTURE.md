@@ -170,7 +170,7 @@ OpenTelemetry Collector
                           prefix : logs/YYYY/MM/DD/HH/MM
 ```
 
-**AWS S3 log export** is handled by the `awss3` exporter in `config/otel-collector-config.yml`. AWS credentials are injected into the collector container via a `.env` file (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`). The bucket and IAM resources are provisioned in `terraform/`.
+**AWS S3 log export** is handled by the `awss3` exporter in `config/otel-collector-config.yml`. AWS credentials are injected into the collector container via a `.env` file (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`). The bucket, the `tharshen-log-archiver` IAM user, and its `tharshen-log-archive-write` policy (scoped to the bucket's `logs/` prefix) are provisioned in `terraform/`; the collector authenticates as that user.
 
 ## 6. Debugging Guide
 
