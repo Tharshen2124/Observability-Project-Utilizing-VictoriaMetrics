@@ -73,14 +73,16 @@ From `compose.yml`:
 	terraform apply
 	```
 
-2. Create a `.env` file in the project root with your AWS credentials:
+2. Create an access key for the log-archive IAM user that Terraform created, then put it in a `.env` file in the project root:
 
 	```bash
-	AWS_ACCESS_KEY_ID=your_access_key_id
-	AWS_SECRET_ACCESS_KEY=your_secret_access_key
+	aws iam create-access-key --user-name tharshen-log-archiver
+
+	AWS_ACCESS_KEY_ID=the_access_key_id
+	AWS_SECRET_ACCESS_KEY=the_secret_access_key
 	```
 
-	> The OTel Collector uses these to authenticate the `awss3` log exporter.
+	> Terraform provisions the `tharshen-log-archiver` user and its `tharshen-log-archive-write` policy but not the access key, so the secret never lands in the committed `terraform.tfstate`. The policy scopes the user to writing objects under the archive bucket's `logs/` prefix. The OTel Collector uses these credentials to authenticate the `awss3` log exporter.
 
 3. Start the stack:
 
