@@ -10,9 +10,10 @@
             "timeout": 300
           }
         ]
-      },
+      }
+    ],
+    "Stop": [
       {
-        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
