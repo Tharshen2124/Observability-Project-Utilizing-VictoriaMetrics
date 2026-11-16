@@ -1,43 +1,65 @@
 #!/usr/bin/env bash
-# Stop hook: run `go mod tidy` once at the end of Claude's turn, only when needed.
+# PostToolUse hook: run `go mod tidy` only when dependencies may have changed.
 #
-# Running on Stop (instead of PostToolUse) means it never overlaps with the
-# per-edit `go test` hook, and it covers every way dependencies can change
-# (edited imports, edited go.mod, `go get` via Bash) in a single pass.
+# Triggers:
+#   - Edit/Write to go.mod
+#   - Edit/Write to a .go file where the change touches an import
+#     (an `import` keyword or a quoted import path line)
+#   - Bash commands that run `go get`
 #
-#   1. Skip unless Go files / go.mod / go.sum have uncommitted changes.
-#   2. Ask `go mod tidy -diff` whether tidy would change anything.
-#   3. Only then run `go mod tidy`.
-#
-# If tidy fails, exit 2 so Claude keeps going and fixes it (once; a second
-# failure in the same stop cycle is reported without blocking again).
+# Ordinary .go edits that don't touch imports are skipped, keeping edits fast.
 set -uo pipefail
 
 input=$(cat)
-stop_hook_active=$(jq -r '.stop_hook_active // false' <<<"$input")
+tool=$(jq -r '.tool_name // empty' <<<"$input")
+
+should_tidy=false
+
+case "$tool" in
+  Edit|Write)
+    file=$(jq -r '.tool_input.file_path // empty' <<<"$input")
+    case "$file" in
+      */go.mod|go.mod)
+        should_tidy=true
+        ;;
+      *.go)
+        # Text that changed: Edit -> old/new strings, Write -> full content.
+        changed=$(jq -r '[.tool_input.old_string, .tool_input.new_string, .tool_input.content]
+                         | map(select(. != null)) | join("\n")' <<<"$input")
+        # `import "x"`, `import (`, or a line inside an import block such as
+        # `"net/http"` / `alias "github.com/x/y"`.
+        if grep -Eq '(^|[[:space:]])import[[:space:]]*[("]|^[[:space:]]*([A-Za-z_.][A-Za-z0-9_]*[[:space:]]+)?"[^"[:space:]]+"[[:space:]]*$' <<<"$changed"; then
+          should_tidy=true
+        fi
+        ;;
+    esac
+    ;;
+  Bash)
+    cmd=$(jq -r '.tool_input.command // empty' <<<"$input")
+    if grep -Eq '(^|[;&|[:space:]])go[[:space:]]+get([[:space:]]|$)' <<<"$cmd"; then
+      should_tidy=true
+    fi
+    ;;
+esac
+
+$should_tidy || exit 0
 
 root="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 cd "$root" || exit 0
 [[ -f go.mod ]] || exit 0
 
-# Nothing Go-related changed this session -> nothing to tidy.
-if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  [[ -n "$(git status --porcelain -- '*.go' go.mod go.sum 2>/dev/null)" ]] || exit 0
-fi
-
-# Exit 0 = already tidy. Anything else = needs tidy (or errored; tidy will tell us).
-go mod tidy -diff >/dev/null 2>&1 && exit 0
+before=$(cat go.mod go.sum 2>/dev/null | shasum)
 
 if ! output=$(go mod tidy 2>&1); then
-  msg="go mod tidy failed:
-$output"
-  if [[ "$stop_hook_active" == "true" ]]; then
-    jq -n --arg m "$msg" '{systemMessage: $m}'
-    exit 0
-  fi
-  echo "$msg" >&2
+  {
+    echo "go mod tidy failed:"
+    echo "$output"
+  } >&2
   exit 2
 fi
 
-jq -n '{systemMessage: "go mod tidy updated go.mod/go.sum"}'
+after=$(cat go.mod go.sum 2>/dev/null | shasum)
+if [[ "$before" != "$after" ]]; then
+  echo "go mod tidy updated go.mod/go.sum"
+fi
 exit 0

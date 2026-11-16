@@ -6,14 +6,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/go-test.sh",
-            "timeout": 300
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/go-post-edit.sh",
+            "timeout": 420
           }
         ]
-      }
-    ],
-    "Stop": [
+      },
       {
+        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
