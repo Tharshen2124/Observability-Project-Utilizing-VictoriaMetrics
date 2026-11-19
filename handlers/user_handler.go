@@ -100,6 +100,12 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, err := db.Store.CreateUser(user)
+	if errors.Is(err, db.ErrDuplicateEmail) {
+		logFields["status"] = http.StatusConflict
+		logger.WarnContext(r.Context(), "duplicate email", utils.MapToSlogAttrs(logFields)...)
+		utils.Error(w, http.StatusConflict, "a user with that email already exists")
+		return
+	}
 	if err != nil {
 		logFields["error"] = err.Error()
 		logFields["status"] = http.StatusInternalServerError
