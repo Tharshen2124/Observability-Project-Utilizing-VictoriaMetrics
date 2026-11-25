@@ -1,9 +1,5 @@
 .env
 *.toml
+.claude
 .claude/*
-!.claude/settings.json
-!.claude/hooks/
 graphify-out
-*.tfstate
-*.tfstate.*
-.terraform/
